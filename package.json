@@ -1,0 +1,17 @@
+{
+  "name": "chat-api",
+  "version": "1.0.0",
+  "description": "A tiny CRUD chat API for learning how frontends talk to backends",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}

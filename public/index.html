@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Class Chat</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f1f5f9; color: #0f172a; }
+    .app { max-width: 640px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; padding: 16px; gap: 12px; }
+    header { display: flex; align-items: center; justify-content: space-between; }
+    h1 { font-size: 20px; margin: 0; }
+    #status { font-size: 12px; color: #64748b; }
+    #name { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; width: 140px; }
+    #list { flex: 1; overflow-y: auto; background: #fff; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .msg { max-width: 80%; padding: 8px 12px; border-radius: 12px; background: #e2e8f0; align-self: flex-start; }
+    .msg.me { background: #4f46e5; color: #fff; align-self: flex-end; }
+    .meta { font-size: 11px; opacity: .7; margin-bottom: 2px; }
+    .actions { margin-top: 4px; display: flex; gap: 8px; }
+    .actions button { background: none; border: none; color: inherit; opacity: .8; cursor: pointer; font-size: 12px; padding: 0; text-decoration: underline; }
+    form { display: flex; gap: 8px; }
+    #text { flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px; }
+    form button { padding: 0 18px; border: none; border-radius: 10px; background: #4f46e5; color: #fff; font-weight: 600; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>💬 Class Chat</h1>
+        <div id="status">connecting…</div>
+      </div>
+      <input id="name" placeholder="Your name" />
+    </header>
+
+    <div id="list"></div>
+
+    <form id="form">
+      <input id="text" placeholder="Type a message…" autocomplete="off" />
+      <button>Send</button>
+    </form>
+  </div>
+
+  <script>
+    // Where is the backend? Empty string = same server that served this page.
+    // If your frontend runs elsewhere, put the full URL, e.g.
+    // const API_URL = "https://your-app.onrender.com";
+    const API_URL = "";
+
+    const list = document.getElementById("list");
+    const form = document.getElementById("form");
+    const textInput = document.getElementById("text");
+    const nameInput = document.getElementById("name");
+    const statusEl = document.getElementById("status");
+
+    nameInput.value = localStorage.getItem("chat-name") || "";
+    nameInput.addEventListener("input", () => localStorage.setItem("chat-name", nameInput.value));
+
+    // ---------- READ: GET /api/messages ----------
+    async function loadMessages() {
+      try {
+        const res = await fetch(`${API_URL}/api/messages`);
+        const messages = await res.json();
+        render(messages);
+        statusEl.textContent = `🟢 online · ${messages.length} messages`;
+      } catch (err) {
+        statusEl.textContent = "🔴 can't reach the server";
+      }
+    }
+
+    // ---------- CREATE: POST /api/messages ----------
+    async function sendMessage(text) {
+      const res = await fetch(`${API_URL}/api/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: nameInput.value, text }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error);
+      }
+      loadMessages();
+    }
+
+    // ---------- UPDATE: PUT /api/messages/:id ----------
+    async function editMessage(id, oldText) {
+      const text = prompt("Edit message", oldText);
+      if (!text) return;
+      await fetch(`${API_URL}/api/messages/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      loadMessages();
+    }
+
+    // ---------- DELETE: DELETE /api/messages/:id ----------
+    async function deleteMessage(id) {
+      if (!confirm("Delete this message?")) return;
+      await fetch(`${API_URL}/api/messages/${id}`, { method: "DELETE" });
+      loadMessages();
+    }
+
+    // ---------- Draw messages on screen ----------
+    function render(messages) {
+      const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+      list.innerHTML = "";
+      for (const m of messages) {
+        const mine = m.user === nameInput.value;
+        const div = document.createElement("div");
+        div.className = "msg" + (mine ? " me" : "");
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = `${m.user} · ${new Date(m.createdAt).toLocaleTimeString()}${m.updatedAt ? " · edited" : ""}`;
+
+        const body = document.createElement("div");
+        body.textContent = m.text; // textContent, not innerHTML -> safe from HTML injection
+
+        div.append(meta, body);
+
+        if (mine) {
+          const actions = document.createElement("div");
+          actions.className = "actions";
+          const edit = document.createElement("button");
+          edit.textContent = "edit";
+          edit.onclick = () => editMessage(m.id, m.text);
+          const del = document.createElement("button");
+          del.textContent = "delete";
+          del.onclick = () => deleteMessage(m.id);
+          actions.append(edit, del);
+          div.append(actions);
+        }
+        list.append(div);
+      }
+      if (atBottom) list.scrollTop = list.scrollHeight;
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const text = textInput.value.trim();
+      if (!text) return;
+      if (!nameInput.value.trim()) return alert("Enter your name first");
+      textInput.value = "";
+      sendMessage(text);
+    });
+
+    // Ask the server for new messages every 2 seconds ("polling")
+    loadMessages();
+    setInterval(loadMessages, 2000);
+  </script>
+</body>
+</html>
